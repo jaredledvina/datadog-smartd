@@ -18,9 +18,8 @@
     ]
   },
   "author": {
-    "support_email": "help@datadoghq.com",
-    "name": "Community",
-    "homepage": "https://github.com/DataDog/integrations-extras"
+    "name": "Jared Ledvina",
+    "homepage": "https://github.com/jaredledvina/datadog-smartd"
   },
   "assets": {
     "integration": {

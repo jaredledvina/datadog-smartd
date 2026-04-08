@@ -15,18 +15,19 @@ Unlike other approaches that shell out to `smartctl` (which requires root privil
 
 ### Installation
 
-For development, install the check in the Datadog Agent's Python environment:
+The integration is published to [PyPI][8]. The Datadog Agent does not use public PyPI directly, so install it by downloading the wheel and handing it to the Agent's `integration install` command.
 
 ```bash
-datadog-agent integration install -e /path/to/smartd
-```
+# Download the wheel using the Agent's embedded pip
+/opt/datadog-agent/embedded/bin/pip download --no-deps -d /tmp datadog-smartd
 
-For production, copy the check file and configuration:
+# Install the downloaded wheel into the Agent
+datadog-agent integration install --local-wheel /tmp/datadog_smartd-*.whl
 
-```bash
-cp datadog_checks/smartd/check.py /etc/datadog-agent/checks.d/smartd.py
+# Drop the example config into place and edit as needed
 mkdir -p /etc/datadog-agent/conf.d/smartd.d
-cp datadog_checks/smartd/data/conf.yaml.example /etc/datadog-agent/conf.d/smartd.d/conf.yaml
+cp /opt/datadog-agent/embedded/lib/python*/site-packages/datadog_checks/smartd/data/conf.yaml.example \
+   /etc/datadog-agent/conf.d/smartd.d/conf.yaml
 ```
 
 ### Configuration
@@ -82,5 +83,6 @@ For help, open an issue on the [GitHub repository][7].
 [3]: https://www.smartmontools.org/
 [4]: https://docs.datadoghq.com/agent/guide/agent-commands/#start-stop-and-restart-the-agent
 [5]: https://docs.datadoghq.com/agent/guide/agent-commands/#agent-status-and-information
-[6]: https://github.com/DataDog/integrations-extras/blob/master/smartd/metadata.csv
-[7]: https://github.com/DataDog/integrations-extras
+[6]: https://github.com/jaredledvina/datadog-smartd/blob/main/smartd/metadata.csv
+[7]: https://github.com/jaredledvina/datadog-smartd/issues
+[8]: https://pypi.org/project/datadog-smartd/
