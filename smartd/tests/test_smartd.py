@@ -1,0 +1,132 @@
+import os
+from unittest.mock import patch
+
+import pytest
+
+from datadog_checks.base import AgentCheck
+from datadog_checks.smartd import SmartdCheck
+
+from .common import (
+    CHECK_NAME,
+    DEGRADED_TAGS,
+    FIXTURE_DIR,
+    HEALTHY_TAGS,
+    INSTANCE,
+)
+
+pytestmark = pytest.mark.unit
+
+
+def test_check_healthy_and_degraded(aggregator, dd_run_check):
+    check = SmartdCheck(CHECK_NAME, {}, [INSTANCE])
+    dd_run_check(check)
+
+    # Healthy drive metrics
+    aggregator.assert_metric('smartd.raw_read_error_rate', value=0, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.reallocated_sectors', value=0, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.power_on_hours', value=91000, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.spin_retry_count', value=0, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.power_cycle_count', value=29, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.temperature', value=37, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.reallocated_event_count', value=0, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.current_pending_sectors', value=0, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.offline_uncorrectable', value=0, tags=HEALTHY_TAGS)
+    aggregator.assert_metric('smartd.udma_crc_error_count', value=0, tags=HEALTHY_TAGS)
+
+    # Degraded drive metrics
+    aggregator.assert_metric('smartd.reallocated_sectors', value=16, tags=DEGRADED_TAGS)
+    aggregator.assert_metric('smartd.current_pending_sectors', value=2, tags=DEGRADED_TAGS)
+    aggregator.assert_metric('smartd.udma_crc_error_count', value=3, tags=DEGRADED_TAGS)
+    aggregator.assert_metric('smartd.temperature', value=41, tags=DEGRADED_TAGS)
+    aggregator.assert_metric('smartd.power_on_hours', value=105000, tags=DEGRADED_TAGS)
+
+    # Service checks
+    aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=HEALTHY_TAGS)
+    aggregator.assert_service_check('smartd.disk_health', AgentCheck.WARNING, tags=DEGRADED_TAGS)
+    aggregator.assert_service_check('smartd.can_read', AgentCheck.OK)
+
+    aggregator.assert_all_metrics_covered()
+
+
+def test_check_no_files(aggregator, dd_run_check):
+    instance = {
+        'smartd_state_dir': '/nonexistent/path',
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    aggregator.assert_service_check('smartd.can_read', AgentCheck.CRITICAL)
+
+
+def test_check_empty_file(aggregator, dd_run_check, tmp_path):
+    state_file = tmp_path / 'smartd.EMPTY_DRIVE-SERIAL000.ata.state'
+    state_file.write_text('')
+
+    instance = {
+        'smartd_state_dir': str(tmp_path),
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    tags = ['device_model:EMPTY_DRIVE', 'serial_number:SERIAL000']
+    aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=tags)
+    aggregator.assert_service_check('smartd.can_read', AgentCheck.OK)
+
+
+def test_check_malformed_lines(aggregator, dd_run_check, tmp_path):
+    state_file = tmp_path / 'smartd.TEST_DRIVE-SERIAL001.ata.state'
+    state_file.write_text(
+        '# comment line\n'
+        'garbage line\n'
+        'ata-smart-attribute.0.id = 194\n'
+        'ata-smart-attribute.0.val = 160\n'
+        'ata-smart-attribute.0.raw = 201864314917\n'
+        'ata-smart-attribute.0.bad_field = 999\n'
+    )
+
+    instance = {
+        'smartd_state_dir': str(tmp_path),
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    tags = ['device_model:TEST_DRIVE', 'serial_number:SERIAL001']
+    aggregator.assert_metric('smartd.temperature', value=37, tags=tags)
+    aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=tags)
+    aggregator.assert_service_check('smartd.can_read', AgentCheck.OK)
+    aggregator.assert_all_metrics_covered()
+
+
+def test_check_unparseable_filename(aggregator, dd_run_check, tmp_path):
+    state_file = tmp_path / 'smartd.bad-filename.state'
+    state_file.write_text('ata-smart-attribute.0.id = 194\n')
+
+    instance = {
+        'smartd_state_dir': str(tmp_path),
+        'file_pattern': 'smartd.*.state',
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    # File is found so can_read is OK, but no metrics emitted for unparseable filename
+    aggregator.assert_service_check('smartd.can_read', AgentCheck.OK)
+
+
+def test_custom_tags(aggregator, dd_run_check, tmp_path):
+    state_file = tmp_path / 'smartd.TAG_DRIVE-SERIAL002.ata.state'
+    state_file.write_text(
+        'ata-smart-attribute.0.id = 194\n'
+        'ata-smart-attribute.0.val = 160\n'
+        'ata-smart-attribute.0.raw = 201864314917\n'
+    )
+
+    instance = {
+        'smartd_state_dir': str(tmp_path),
+        'tags': ['datacenter:us-east', 'rack:42'],
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    expected_tags = ['device_model:TAG_DRIVE', 'serial_number:SERIAL002', 'datacenter:us-east', 'rack:42']
+    aggregator.assert_metric('smartd.temperature', value=37, tags=expected_tags)
+    aggregator.assert_all_metrics_covered()

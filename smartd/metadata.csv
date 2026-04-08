@@ -1,0 +1,11 @@
+metric_name,metric_type,interval,unit_name,per_unit_name,description,orientation,integration,short_name,curated_metric
+smartd.raw_read_error_rate,gauge,,,,Raw read error rate,0,smartd,read error rate,
+smartd.reallocated_sectors,gauge,,,,Count of reallocated sectors,-1,smartd,reallocated sectors,
+smartd.power_on_hours,gauge,,hour,,Total power-on hours,0,smartd,power on hours,
+smartd.spin_retry_count,gauge,,,,Spin retry count,-1,smartd,spin retries,
+smartd.power_cycle_count,gauge,,,,Power cycle count,0,smartd,power cycles,
+smartd.temperature,gauge,,degree celsius,,Current drive temperature,-1,smartd,temperature,
+smartd.reallocated_event_count,gauge,,,,Reallocated event count,-1,smartd,reallocated events,
+smartd.current_pending_sectors,gauge,,,,Sectors pending reallocation,-1,smartd,pending sectors,
+smartd.offline_uncorrectable,gauge,,,,Offline uncorrectable sectors,-1,smartd,offline uncorrectable,
+smartd.udma_crc_error_count,gauge,,,,UDMA CRC errors,-1,smartd,crc errors,

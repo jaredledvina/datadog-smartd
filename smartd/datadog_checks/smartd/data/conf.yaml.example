@@ -1,0 +1,33 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+## Every instance is scheduled independently of the others.
+#
+instances:
+
+  -
+    ## @param smartd_state_dir - string - optional - default: /var/lib/smartmontools
+    ## Path to the directory containing smartd state files.
+    #
+    # smartd_state_dir: /var/lib/smartmontools
+
+    ## @param file_pattern - string - optional - default: smartd.*.state
+    ## Glob pattern to match smartd state files within the state directory.
+    #
+    # file_pattern: "smartd.*.state"
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param min_collection_interval - number - optional - default: 120
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 120

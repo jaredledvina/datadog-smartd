@@ -1,0 +1,47 @@
+{
+  "manifest_version": "2.0.0",
+  "app_id": "smartd",
+  "app_uuid": "38657b7d-a5d3-4a34-b65c-0dc36e23f330",
+  "display_on_public_website": true,
+  "tile": {
+    "overview": "README.md#Overview",
+    "configuration": "README.md#Setup",
+    "support": "README.md#Support",
+    "changelog": "CHANGELOG.md",
+    "description": "Monitor S.M.A.R.T. disk health via smartd state files",
+    "title": "smartd",
+    "media": [],
+    "classifier_tags": [
+      "Supported OS::Linux",
+      "Category::OS & System",
+      "Offering::Integration"
+    ]
+  },
+  "author": {
+    "support_email": "help@datadoghq.com",
+    "name": "Community",
+    "homepage": "https://github.com/DataDog/integrations-extras"
+  },
+  "assets": {
+    "integration": {
+      "source_type_name": "smartd",
+      "configuration": {
+        "spec": "assets/configuration/spec.yaml"
+      },
+      "events": {
+        "creates_events": false
+      },
+      "metrics": {
+        "prefix": "smartd.",
+        "check": "smartd.temperature",
+        "metadata_path": "metadata.csv"
+      },
+      "service_checks": {
+        "metadata_path": "assets/service_checks.json"
+      }
+    },
+    "dashboards": {
+      "smartd Overview": "assets/dashboards/smartd_overview.json"
+    }
+  }
+}

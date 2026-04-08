@@ -1,0 +1,9 @@
+# NOTE: [env.collectors.datadog-checks] is needed in integrations-core/extras
+# but requires the monorepo hatch plugin. Uncomment when contributing upstream.
+# [env.collectors.datadog-checks]
+
+[envs.default]
+e2e-env = false
+
+[[envs.default.matrix]]
+python = ["3.13"]

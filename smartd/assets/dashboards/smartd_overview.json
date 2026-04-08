@@ -1,0 +1,230 @@
+{
+  "title": "smartd Overview",
+  "description": "S.M.A.R.T. disk health overview",
+  "widgets": [
+    {
+      "id": 1,
+      "definition": {
+        "title": "Disk Health Status",
+        "type": "check_status",
+        "check": "smartd.disk_health",
+        "grouping": "cluster",
+        "group_by": ["device_model", "serial_number"],
+        "tags": ["*"]
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 4,
+        "height": 2
+      }
+    },
+    {
+      "id": 2,
+      "definition": {
+        "title": "Temperature by Drive",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["avg", "min", "max", "value"],
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [{"formula": "query1"}],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:smartd.temperature{*} by {device_model,serial_number}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "warm"
+            },
+            "display_type": "line"
+          }
+        ],
+        "yaxis": {
+          "label": "",
+          "scale": "linear",
+          "include_zero": false
+        }
+      },
+      "layout": {
+        "x": 4,
+        "y": 0,
+        "width": 8,
+        "height": 3
+      }
+    },
+    {
+      "id": 3,
+      "definition": {
+        "title": "Reallocated Sectors",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["avg", "value"],
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [{"formula": "query1"}],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:smartd.reallocated_sectors{*} by {device_model,serial_number}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "orange"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 3,
+        "width": 4,
+        "height": 3
+      }
+    },
+    {
+      "id": 4,
+      "definition": {
+        "title": "Current Pending Sectors",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["avg", "value"],
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [{"formula": "query1"}],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:smartd.current_pending_sectors{*} by {device_model,serial_number}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "orange"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 4,
+        "y": 3,
+        "width": 4,
+        "height": 3
+      }
+    },
+    {
+      "id": 5,
+      "definition": {
+        "title": "Offline Uncorrectable Sectors",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["avg", "value"],
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [{"formula": "query1"}],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:smartd.offline_uncorrectable{*} by {device_model,serial_number}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "red"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 8,
+        "y": 3,
+        "width": 4,
+        "height": 3
+      }
+    },
+    {
+      "id": 6,
+      "definition": {
+        "title": "Power-On Hours by Drive",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["value"],
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [{"formula": "query1"}],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:smartd.power_on_hours{*} by {device_model,serial_number}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "cool"
+            },
+            "display_type": "line"
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 6,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "id": 7,
+      "definition": {
+        "title": "UDMA CRC Errors",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "legend_columns": ["avg", "value"],
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [{"formula": "query1"}],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:smartd.udma_crc_error_count{*} by {device_model,serial_number}"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "orange"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 6,
+        "y": 6,
+        "width": 6,
+        "height": 3
+      }
+    }
+  ],
+  "template_variables": [],
+  "layout_type": "ordered",
+  "notify_list": [],
+  "reflow_type": "fixed"
+}

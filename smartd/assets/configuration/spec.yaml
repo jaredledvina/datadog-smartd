@@ -1,0 +1,24 @@
+name: smartd
+files:
+- name: smartd.yaml
+  options:
+  - template: init_config
+    options:
+    - template: init_config/default
+  - template: instances
+    options:
+    - name: smartd_state_dir
+      description: |
+        Path to the directory containing smartd state files.
+      value:
+        type: string
+        example: /var/lib/smartmontools
+        default: /var/lib/smartmontools
+    - name: file_pattern
+      description: |
+        Glob pattern to match smartd state files within the state directory.
+      value:
+        type: string
+        example: "smartd.*.state"
+        default: "smartd.*.state"
+    - template: instances/default

@@ -1,0 +1,20 @@
+[
+  {
+    "agent_version": "7.0.0",
+    "integration": "smartd",
+    "check": "smartd.disk_health",
+    "statuses": ["ok", "warning", "critical"],
+    "groups": ["device_model", "serial_number"],
+    "name": "Disk Health",
+    "description": "Returns CRITICAL if a SMART attribute normalized value reaches 0. Returns WARNING if reallocated sectors, pending sectors, or offline uncorrectable counts are non-zero. Returns OK otherwise."
+  },
+  {
+    "agent_version": "7.0.0",
+    "integration": "smartd",
+    "check": "smartd.can_read",
+    "statuses": ["ok", "critical"],
+    "groups": [],
+    "name": "Can Read State Files",
+    "description": "Returns CRITICAL if no smartd state files are found or readable. Returns OK otherwise."
+  }
+]
