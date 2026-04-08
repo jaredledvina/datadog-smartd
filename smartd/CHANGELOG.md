@@ -2,6 +2,17 @@
 
 <!-- towncrier release notes start -->
 
+## 0.1.4 / 2026-04-08
+
+***Added***:
+
+* README Prerequisites section documenting that smartd must be launched with `-s <prefix>` to persist per-drive state files, with distro-specific notes (Debian/Ubuntu enables it by default, Arch does not).
+* `smartd.disk_health` now reports UNKNOWN (instead of silently OK) when a state file exists but contains no SMART attributes yet — typically the window between smartd starting and its first poll cycle.
+
+***Fixed***:
+
+* `smartd.can_read` CRITICAL messages now explain the smartd configuration requirement and point at the README Prerequisites section, distinguishing between "state directory does not exist" and "state directory is empty".
+
 ## 0.1.3 / 2026-04-08
 
 ***Added***:

@@ -10,8 +10,26 @@ Unlike other approaches that shell out to `smartctl` (which requires root privil
 
 ### Prerequisites
 
-- The `smartd` daemon must be running and writing state files (default location: `/var/lib/smartmontools/`).
-- The `dd-agent` user must have read access to the state files (they are typically world-readable with `644` permissions).
+#### smartd must be persisting state files
+
+This integration reads the per-drive state files that `smartd` writes on every poll cycle. **smartd does not persist state files by default** — it must be launched with the `-s <prefix>` argument, where `<prefix>` is usually `/var/lib/smartmontools/smartd.` so that files land as `/var/lib/smartmontools/smartd.<MODEL>-<SERIAL>.<type>.state`.
+
+Distros handle this differently:
+
+- **Debian / Ubuntu**: the packaged systemd unit already passes `-s /var/lib/smartmontools/smartd.` via `/etc/default/smartmontools`. Nothing to do.
+- **Arch Linux** (and anything else running smartd as just `smartd -n`): state persistence is **not** enabled by default. Create `/etc/conf.d/smartd` with:
+  ```
+  SMARTD_ARGS='-s /var/lib/smartmontools/smartd.'
+  ```
+  Then `mkdir -p /var/lib/smartmontools && systemctl restart smartd`. State files will start appearing on the next poll cycle (default every 30 minutes).
+
+To verify smartd is persisting state, wait a poll cycle after starting smartd and check that `/var/lib/smartmontools/smartd.*.state` files exist and contain lines like `ata-smart-attribute.0.id = 1`.
+
+If the integration can't find any state files it will emit a CRITICAL `smartd.can_read` service check with a message pointing back to this section. If a state file exists but has no SMART attribute data yet (normal right after smartd starts), `smartd.disk_health` will report UNKNOWN for that drive until the next poll cycle populates the file.
+
+#### File permissions
+
+The `dd-agent` user must have read access to the state files. They are typically world-readable with `644` permissions, so no special configuration is needed.
 
 ### Installation
 

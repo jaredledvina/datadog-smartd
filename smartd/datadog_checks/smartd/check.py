@@ -40,11 +40,26 @@ class SmartdCheck(AgentCheck):
 
     def check(self, _):
         pattern = os.path.join(self.state_dir, self.file_pattern)
-        state_files = sorted(glob.glob(pattern))
 
+        if not os.path.isdir(self.state_dir):
+            message = (
+                'smartd state directory {} does not exist. smartd must be '
+                'launched with the "-s <prefix>" argument to persist per-drive '
+                'state files. See the README Prerequisites section.'
+            ).format(self.state_dir)
+            self.service_check('can_read', AgentCheck.CRITICAL, message=message)
+            self.log.error(message)
+            return
+
+        state_files = sorted(glob.glob(pattern))
         if not state_files:
-            self.service_check('can_read', AgentCheck.CRITICAL, message='No smartd state files found')
-            self.log.error('No smartd state files found matching %s', pattern)
+            message = (
+                'No smartd state files found matching {}. smartd must be '
+                'launched with the "-s <prefix>" argument to persist per-drive '
+                'state files. See the README Prerequisites section.'
+            ).format(pattern)
+            self.service_check('can_read', AgentCheck.CRITICAL, message=message)
+            self.log.error(message)
             return
 
         for path in state_files:
@@ -77,13 +92,26 @@ class SmartdCheck(AgentCheck):
             self.service_check('disk_health', AgentCheck.CRITICAL, tags=tags, message=str(e))
             return
 
+        recognized = {aid: data for aid, data in attributes.items() if aid in NAMED_ATTRIBUTES}
+        if not recognized:
+            # State file exists but has no SMART attribute data yet. This
+            # commonly happens right after smartd starts and hasn't polled the
+            # drive for the first time. Report UNKNOWN instead of silently OK.
+            message = (
+                'State file {} contains no recognized SMART attributes yet. '
+                'This is normal shortly after smartd starts; the check will '
+                'begin reporting once smartd writes attribute data on its '
+                'next poll cycle.'
+            ).format(os.path.basename(path))
+            self.log.info(message)
+            self.service_check('disk_health', AgentCheck.UNKNOWN, tags=tags, message=message)
+            return
+
         health = AgentCheck.OK
         health_message = None
 
-        for attr_id, attr_data in attributes.items():
-            metric_name = NAMED_ATTRIBUTES.get(attr_id)
-            if metric_name is None:
-                continue
+        for attr_id, attr_data in recognized.items():
+            metric_name = NAMED_ATTRIBUTES[attr_id]
 
             raw = attr_data.get('raw', 0)
             val = attr_data.get('val', 0)

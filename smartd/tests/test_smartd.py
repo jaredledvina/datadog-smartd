@@ -68,9 +68,37 @@ def test_check_empty_file(aggregator, dd_run_check, tmp_path):
     check = SmartdCheck(CHECK_NAME, {}, [instance])
     dd_run_check(check)
 
+    # Empty state file = no SMART attributes parsed yet, should be UNKNOWN
+    # rather than a silent OK.
     tags = ['device_model:EMPTY_DRIVE', 'serial_number:SERIAL000']
-    aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=tags)
+    aggregator.assert_service_check('smartd.disk_health', AgentCheck.UNKNOWN, tags=tags)
     aggregator.assert_service_check('smartd.can_read', AgentCheck.OK)
+
+
+def test_check_state_dir_missing(aggregator, dd_run_check):
+    instance = {
+        'smartd_state_dir': '/definitely/does/not/exist',
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    # CRITICAL with a message that points at the smartd -s config requirement.
+    aggregator.assert_service_check('smartd.can_read', AgentCheck.CRITICAL)
+    service_checks = aggregator.service_checks('smartd.can_read')
+    assert any('-s <prefix>' in sc.message for sc in service_checks)
+
+
+def test_check_state_dir_empty(aggregator, dd_run_check, tmp_path):
+    # Directory exists but smartd is not writing state files into it.
+    instance = {
+        'smartd_state_dir': str(tmp_path),
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    aggregator.assert_service_check('smartd.can_read', AgentCheck.CRITICAL)
+    service_checks = aggregator.service_checks('smartd.can_read')
+    assert any('-s <prefix>' in sc.message for sc in service_checks)
 
 
 def test_check_malformed_lines(aggregator, dd_run_check, tmp_path):

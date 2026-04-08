@@ -3,10 +3,10 @@
     "agent_version": "7.0.0",
     "integration": "smartd",
     "check": "smartd.disk_health",
-    "statuses": ["ok", "warning", "critical"],
+    "statuses": ["ok", "warning", "critical", "unknown"],
     "groups": ["device_model", "serial_number"],
     "name": "Disk Health",
-    "description": "Returns CRITICAL if a SMART attribute normalized value reaches 0. Returns WARNING if reallocated sectors, pending sectors, or offline uncorrectable counts are non-zero. Returns OK otherwise."
+    "description": "Returns CRITICAL if a SMART attribute normalized value reaches 0. Returns WARNING if reallocated sectors, pending sectors, or offline uncorrectable counts are non-zero. Returns UNKNOWN if the state file exists but contains no SMART attribute data yet (common immediately after smartd starts). Returns OK otherwise."
   },
   {
     "agent_version": "7.0.0",
