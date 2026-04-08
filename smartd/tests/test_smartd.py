@@ -40,7 +40,6 @@ def test_check_healthy_and_degraded(aggregator, dd_run_check):
     aggregator.assert_metric('smartd.ata_error_count', value=0, tags=HEALTHY_TAGS)
     aggregator.assert_metric('smartd.self_test_errors', value=0, tags=HEALTHY_TAGS)
     aggregator.assert_metric('smartd.self_test_last_err_hour', value=0, tags=HEALTHY_TAGS)
-    aggregator.assert_metric('smartd.scheduled_test_next_check', value=0, tags=HEALTHY_TAGS)
 
     # Degraded drive attribute metrics
     aggregator.assert_metric('smartd.raw_read_error_rate', value=12, tags=DEGRADED_TAGS)
@@ -61,7 +60,6 @@ def test_check_healthy_and_degraded(aggregator, dd_run_check):
     aggregator.assert_metric('smartd.ata_error_count', value=42, tags=DEGRADED_TAGS)
     aggregator.assert_metric('smartd.self_test_errors', value=1, tags=DEGRADED_TAGS)
     aggregator.assert_metric('smartd.self_test_last_err_hour', value=98765, tags=DEGRADED_TAGS)
-    aggregator.assert_metric('smartd.scheduled_test_next_check', value=0, tags=DEGRADED_TAGS)
 
     # Service checks
     aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=HEALTHY_TAGS)
@@ -143,7 +141,7 @@ def test_check_malformed_lines(aggregator, dd_run_check, tmp_path):
 
     tags = ['device_model:TEST_DRIVE', 'serial_number:SERIAL001']
     aggregator.assert_metric('smartd.temperature', value=37, tags=tags)
-    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour', 'scheduled_test_next_check'):
+    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour'):
         aggregator.assert_metric('smartd.{}'.format(metric), value=0, tags=tags)
     aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=tags)
     aggregator.assert_service_check('smartd.can_read', AgentCheck.OK)
@@ -196,7 +194,7 @@ def test_device_name_resolution(aggregator, dd_run_check, tmp_path):
         'device_name:sdx',
     ]
     aggregator.assert_metric('smartd.temperature', value=37, tags=expected_tags)
-    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour', 'scheduled_test_next_check'):
+    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour'):
         aggregator.assert_metric('smartd.{}'.format(metric), value=0, tags=expected_tags)
     aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=expected_tags)
     aggregator.assert_all_metrics_covered()
@@ -264,7 +262,7 @@ def test_device_name_missing_symlink(aggregator, dd_run_check, tmp_path):
     # No device/device_name tags when resolution fails, but metric still emitted
     expected_tags = ['device_model:NODEV_DRIVE', 'serial_number:SERIAL_XYZ']
     aggregator.assert_metric('smartd.temperature', value=37, tags=expected_tags)
-    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour', 'scheduled_test_next_check'):
+    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour'):
         aggregator.assert_metric('smartd.{}'.format(metric), value=0, tags=expected_tags)
     aggregator.assert_all_metrics_covered()
 
@@ -286,6 +284,6 @@ def test_custom_tags(aggregator, dd_run_check, tmp_path):
 
     expected_tags = ['device_model:TAG_DRIVE', 'serial_number:SERIAL002', 'datacenter:us-east', 'rack:42']
     aggregator.assert_metric('smartd.temperature', value=37, tags=expected_tags)
-    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour', 'scheduled_test_next_check'):
+    for metric in ('ata_error_count', 'self_test_errors', 'self_test_last_err_hour'):
         aggregator.assert_metric('smartd.{}'.format(metric), value=0, tags=expected_tags)
     aggregator.assert_all_metrics_covered()

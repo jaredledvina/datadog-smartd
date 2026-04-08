@@ -7,7 +7,7 @@
 ***Added***:
 
 * Collect additional SMART attributes: `spin_up_time` (3), `start_stop_count` (4), `wear_leveling_count` (177), `used_reserved_block_count` (179), `program_fail_count` (181), `erase_fail_count` (182), `reported_uncorrectable_errors` (187), `command_timeout` (188), `airflow_temperature` (190), `power_off_retract_count` (192), `load_cycle_count` (193), `por_recovery_count` (235), `head_flying_hours` (240), `total_lbas_written` (241), and `total_lbas_read` (242). SSD-specific and enterprise-drive attributes are now surfaced when present.
-* Collect top-level state-file fields as metrics: `smartd.ata_error_count`, `smartd.self_test_errors`, `smartd.self_test_last_err_hour`, and `smartd.scheduled_test_next_check`. smartd only writes these when non-zero, so absent values are reported as 0 to keep time series continuous.
+* Collect top-level state-file fields as metrics: `smartd.ata_error_count`, `smartd.self_test_errors`, and `smartd.self_test_last_err_hour`. smartd only writes these when non-zero, so absent values are reported as 0 to keep time series continuous. `scheduled-test-next-check` is intentionally not exposed because it is a Unix timestamp, which does not make a useful gauge time series.
 * `reported_uncorrectable_errors` (ID 187) is now treated as a warning attribute alongside reallocated/pending/offline-uncorrectable sectors.
 
 ***Fixed***:

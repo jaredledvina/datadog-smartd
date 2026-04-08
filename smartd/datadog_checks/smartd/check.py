@@ -44,8 +44,13 @@ WARNING_ATTRIBUTES = {5, 187, 197, 198}
 TOP_LEVEL_METRICS = {
     'ata-error-count': 'ata_error_count',
     'self-test-errors': 'self_test_errors',
+    # Power-on hour at which the last self-test error occurred. Not a wall
+    # clock timestamp — it's a counter in the same units as power_on_hours,
+    # so users can derive "hours since last self-test error".
     'self-test-last-err-hour': 'self_test_last_err_hour',
-    'scheduled-test-next-check': 'scheduled_test_next_check',
+    # scheduled-test-next-check is deliberately omitted: smartd writes it as
+    # a Unix timestamp of the next scheduled self-test, which is not useful
+    # as a gauge time series in Datadog.
 }
 
 ATTR_LINE_PATTERN = re.compile(
