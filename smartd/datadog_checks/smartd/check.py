@@ -36,6 +36,7 @@ class SmartdCheck(AgentCheck):
         super().__init__(name, init_config, instances)
         self.state_dir = self.instance.get('smartd_state_dir', '/var/lib/smartmontools')
         self.file_pattern = self.instance.get('file_pattern', 'smartd.*.state')
+        self.dev_disk_by_id = self.instance.get('dev_disk_by_id', '/dev/disk/by-id')
 
     def check(self, _):
         pattern = os.path.join(self.state_dir, self.file_pattern)
@@ -61,6 +62,12 @@ class SmartdCheck(AgentCheck):
         model = match.group(1)
         serial = match.group(2)
         device_tags = ['device_model:{}'.format(model), 'serial_number:{}'.format(serial)]
+
+        device_name = self._resolve_device_name(model, serial)
+        if device_name:
+            device_tags.append('device:/dev/{}'.format(device_name))
+            device_tags.append('device_name:{}'.format(device_name))
+
         tags = device_tags + self.instance.get('tags', [])
 
         try:
@@ -100,6 +107,19 @@ class SmartdCheck(AgentCheck):
                 )
 
         self.service_check('disk_health', health, tags=tags, message=health_message)
+
+    def _resolve_device_name(self, model, serial):
+        """Resolve the kernel device name (e.g. 'sdb') for a drive with the
+        given model and serial by reading the matching symlink under
+        /dev/disk/by-id. Returns None if no matching symlink exists.
+        """
+        link = os.path.join(self.dev_disk_by_id, 'ata-{}_{}'.format(model, serial))
+        try:
+            target = os.readlink(link)
+        except OSError:
+            self.log.debug('No by-id symlink for %s_%s at %s', model, serial, link)
+            return None
+        return os.path.basename(target)
 
     def _parse_state_file(self, path):
         attributes = {}

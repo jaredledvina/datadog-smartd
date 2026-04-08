@@ -112,6 +112,67 @@ def test_check_unparseable_filename(aggregator, dd_run_check, tmp_path):
     aggregator.assert_service_check('smartd.can_read', AgentCheck.OK)
 
 
+def test_device_name_resolution(aggregator, dd_run_check, tmp_path):
+    state_dir = tmp_path / 'state'
+    state_dir.mkdir()
+    state_file = state_dir / 'smartd.DEV_DRIVE-SERIAL_ABC.ata.state'
+    state_file.write_text(
+        'ata-smart-attribute.0.id = 194\n'
+        'ata-smart-attribute.0.val = 160\n'
+        'ata-smart-attribute.0.raw = 201864314917\n'
+    )
+
+    by_id = tmp_path / 'by-id'
+    by_id.mkdir()
+    # Mimic the real /dev/disk/by-id layout: a relative symlink pointing back
+    # to the kernel device name, e.g. ../../sdx
+    symlink = by_id / 'ata-DEV_DRIVE_SERIAL_ABC'
+    os.symlink('../../sdx', symlink)
+
+    instance = {
+        'smartd_state_dir': str(state_dir),
+        'dev_disk_by_id': str(by_id),
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    expected_tags = [
+        'device_model:DEV_DRIVE',
+        'serial_number:SERIAL_ABC',
+        'device:/dev/sdx',
+        'device_name:sdx',
+    ]
+    aggregator.assert_metric('smartd.temperature', value=37, tags=expected_tags)
+    aggregator.assert_service_check('smartd.disk_health', AgentCheck.OK, tags=expected_tags)
+    aggregator.assert_all_metrics_covered()
+
+
+def test_device_name_missing_symlink(aggregator, dd_run_check, tmp_path):
+    state_dir = tmp_path / 'state'
+    state_dir.mkdir()
+    state_file = state_dir / 'smartd.NODEV_DRIVE-SERIAL_XYZ.ata.state'
+    state_file.write_text(
+        'ata-smart-attribute.0.id = 194\n'
+        'ata-smart-attribute.0.val = 160\n'
+        'ata-smart-attribute.0.raw = 201864314917\n'
+    )
+
+    by_id = tmp_path / 'empty-by-id'
+    by_id.mkdir()
+
+    instance = {
+        'smartd_state_dir': str(state_dir),
+        'dev_disk_by_id': str(by_id),
+    }
+    check = SmartdCheck(CHECK_NAME, {}, [instance])
+    dd_run_check(check)
+
+    # No device/device_name tags when resolution fails, but metric still emitted
+    expected_tags = ['device_model:NODEV_DRIVE', 'serial_number:SERIAL_XYZ']
+    aggregator.assert_metric('smartd.temperature', value=37, tags=expected_tags)
+    aggregator.assert_all_metrics_covered()
+
+
 def test_custom_tags(aggregator, dd_run_check, tmp_path):
     state_file = tmp_path / 'smartd.TAG_DRIVE-SERIAL002.ata.state'
     state_file.write_text(

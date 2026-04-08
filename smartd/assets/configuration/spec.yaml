@@ -21,4 +21,14 @@ files:
         type: string
         example: "smartd.*.state"
         default: "smartd.*.state"
+    - name: dev_disk_by_id
+      description: |
+        Path to the directory containing /dev/disk/by-id symlinks. The check
+        uses these to resolve each drive's kernel device name (e.g. sda) and
+        attaches `device:/dev/sda` and `device_name:sda` tags matching the
+        convention used by the core `system.disk.*` metrics.
+      value:
+        type: string
+        example: /dev/disk/by-id
+        default: /dev/disk/by-id
     - template: instances/default

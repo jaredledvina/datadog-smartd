@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## 0.1.3 / 2026-04-08
+
+***Added***:
+
+* Resolve each drive's kernel device name via `/dev/disk/by-id/ata-<MODEL>_<SERIAL>` and attach `device:/dev/<name>` and `device_name:<name>` tags to metrics and service checks, matching the convention used by the core `system.disk.*` metrics.
+* New `dev_disk_by_id` instance option (default `/dev/disk/by-id`) to override the by-id lookup directory.
+
 ## 0.1.2 / 2026-04-08
 
 ***Fixed***:

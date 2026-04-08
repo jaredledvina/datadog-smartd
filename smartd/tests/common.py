@@ -6,6 +6,9 @@ FIXTURE_DIR = os.path.join(HERE, 'fixtures')
 INSTANCE = {
     'smartd_state_dir': FIXTURE_DIR,
     'file_pattern': 'smartd.*.state',
+    # Point at a path that doesn't exist so tests are isolated from the real
+    # /dev/disk/by-id on the host running the test suite.
+    'dev_disk_by_id': '/nonexistent/by-id',
 }
 
 CHECK_NAME = 'smartd'

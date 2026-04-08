@@ -17,6 +17,14 @@ instances:
     #
     # file_pattern: "smartd.*.state"
 
+    ## @param dev_disk_by_id - string - optional - default: /dev/disk/by-id
+    ## Path to the directory containing /dev/disk/by-id symlinks. The check
+    ## uses these to resolve each drive's kernel device name (e.g. sda) and
+    ## attaches `device:/dev/sda` and `device_name:sda` tags matching the
+    ## convention used by the core `system.disk.*` metrics.
+    #
+    # dev_disk_by_id: /dev/disk/by-id
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
