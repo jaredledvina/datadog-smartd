@@ -1,4 +1,7 @@
 # smartd state file
+self-test-errors = 1
+self-test-last-err-hour = 98765
+ata-error-count = 42
 ata-smart-attribute.0.id = 1
 ata-smart-attribute.0.val = 98
 ata-smart-attribute.0.worst = 95

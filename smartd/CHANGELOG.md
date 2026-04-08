@@ -2,6 +2,18 @@
 
 <!-- towncrier release notes start -->
 
+## 0.1.5 / 2026-04-08
+
+***Added***:
+
+* Collect additional SMART attributes: `spin_up_time` (3), `start_stop_count` (4), `wear_leveling_count` (177), `used_reserved_block_count` (179), `reported_uncorrectable_errors` (187), `airflow_temperature` (190), `power_off_retract_count` (192), `load_cycle_count` (193), `head_flying_hours` (240), `total_lbas_written` (241), and `total_lbas_read` (242). SSD-specific and enterprise-drive attributes are now surfaced when present.
+* Collect top-level state-file fields as metrics: `smartd.ata_error_count`, `smartd.self_test_errors`, `smartd.self_test_last_err_hour`, and `smartd.scheduled_test_next_check`. smartd only writes these when non-zero, so absent values are reported as 0 to keep time series continuous.
+* `reported_uncorrectable_errors` (ID 187) is now treated as a warning attribute alongside reallocated/pending/offline-uncorrectable sectors.
+
+***Fixed***:
+
+* Device name resolution now matches `/dev/disk/by-id/ata-*_<SERIAL>` by serial suffix instead of building `ata-<MODEL>_<SERIAL>`. smartd normalizes dashes in the hardware model to underscores when constructing state file names, while `/dev/disk/by-id` preserves the original dashes — the old builder failed to resolve device names for drives whose model contains dashes (e.g. Seagate `ST20000NM007D-3DJ103`).
+
 ## 0.1.4 / 2026-04-08
 
 ***Added***:
