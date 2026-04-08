@@ -22,7 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install hatchling
+          pip install hatchling lazy_loader
           pip install datadog-checks-base datadog-checks-dev pytest
           pip install -e .
 
