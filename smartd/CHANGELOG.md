@@ -2,6 +2,23 @@
 
 <!-- towncrier release notes start -->
 
+## 0.2.0 / 2026-04-08
+
+***Changed***:
+
+* **BREAKING:** Monotonic SMART attributes (`start_stop_count`, `reallocated_sectors`, `power_on_hours`, `spin_retry_count`, `power_cycle_count`, `wear_leveling_count`, `used_reserved_block_count`, `program_fail_count`, `erase_fail_count`, `reported_uncorrectable_errors`, `command_timeout`, `power_off_retract_count`, `load_cycle_count`, `reallocated_event_count`, `udma_crc_error_count`, `por_recovery_count`, `head_flying_hours`, `total_lbas_written`, `total_lbas_read`) and top-level counters (`ata_error_count`, `self_test_errors`) are now emitted via `monotonic_count` instead of `gauge`, and their `metadata.csv` type is now `count`. This makes "errors in the last N minutes" queries and rate-based alerts trivial without resorting to `diff()` in the monitor. Note that `monotonic_count` drops the first sample per drive after an agent restart to establish a baseline. Metrics that can legitimately decrease or fluctuate (`raw_read_error_rate`, `spin_up_time`, `temperature`, `airflow_temperature`, `current_pending_sectors`, `offline_uncorrectable`, `self_test_last_err_hour`) remain gauges.
+
+***Added***:
+
+* `smartd.can_read` service check now carries the instance `tags`, so users can scope alerts on it by `datacenter`, `rack`, etc.
+
+***Fixed***:
+
+* `disk_health` service check now aggregates *all* failing attributes into a single message instead of reporting only the last one iterated, so multi-attribute failures are visible at a glance.
+* Normalized-value health check now guards against a missing `val` field rather than treating it as zero, avoiding spurious CRITICALs on malformed/partial state files.
+* State files are now opened as UTF-8 explicitly, so parsing is deterministic across hosts regardless of locale.
+* Parse error messages now include the filename so operators can identify the failing drive from logs without cross-referencing the check's internal path handling.
+
 ## 0.1.5 / 2026-04-08
 
 ***Added***:

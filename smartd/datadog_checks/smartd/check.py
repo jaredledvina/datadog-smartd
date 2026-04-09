@@ -35,22 +35,64 @@ NAMED_ATTRIBUTES = {
     242: 'total_lbas_read',
 }
 
-# Attributes where non-zero raw values indicate potential problems
+# Attributes where non-zero raw values indicate potential problems.
+# Per Backblaze's large-scale drive failure analysis, these four are the
+# strongest predictors of imminent failure:
+#   5   - reallocated_sectors
+#   187 - reported_uncorrectable_errors
+#   197 - current_pending_sectors
+#   198 - offline_uncorrectable
 WARNING_ATTRIBUTES = {5, 187, 197, 198}
+
+# Attributes whose raw value is a monotonic counter (only ever increases).
+# These are emitted via self.monotonic_count() so Datadog stores the
+# per-interval delta, which enables trivial rate queries and alerting
+# on "errors increased in the last N minutes". Attributes not listed
+# here (temperature, current_pending_sectors, offline_uncorrectable,
+# raw_read_error_rate, spin_up_time, airflow_temperature) are emitted as
+# gauges because they can fluctuate or decrease in the drive's lifetime.
+MONOTONIC_ATTRIBUTES = {
+    4,    # start_stop_count
+    5,    # reallocated_sectors
+    9,    # power_on_hours
+    10,   # spin_retry_count
+    12,   # power_cycle_count
+    177,  # wear_leveling_count
+    179,  # used_reserved_block_count
+    181,  # program_fail_count
+    182,  # erase_fail_count
+    187,  # reported_uncorrectable_errors
+    188,  # command_timeout
+    192,  # power_off_retract_count
+    193,  # load_cycle_count
+    196,  # reallocated_event_count
+    199,  # udma_crc_error_count
+    235,  # por_recovery_count
+    240,  # head_flying_hours
+    241,  # total_lbas_written
+    242,  # total_lbas_read
+}
 
 # Top-level state file fields smartd writes outside the attribute section.
 # smartd only writes some of these when they're non-zero, so absent ones are
 # reported as 0 to keep time series continuous.
-TOP_LEVEL_METRICS = {
+#
+# Split by metric type: error/event counters are monotonic, while
+# self-test-last-err-hour is a pointer-like gauge that jumps to a new
+# power-on-hour value rather than accumulating.
+#
+# scheduled-test-next-check is deliberately omitted: smartd writes it as
+# a Unix timestamp of the next scheduled self-test, which is not useful
+# as a gauge time series in Datadog.
+TOP_LEVEL_MONOTONIC_METRICS = {
     'ata-error-count': 'ata_error_count',
     'self-test-errors': 'self_test_errors',
+}
+TOP_LEVEL_GAUGE_METRICS = {
     # Power-on hour at which the last self-test error occurred. Not a wall
-    # clock timestamp — it's a counter in the same units as power_on_hours,
-    # so users can derive "hours since last self-test error".
+    # clock timestamp — it's in the same units as power_on_hours, so users
+    # can derive "hours since last self-test error".
     'self-test-last-err-hour': 'self_test_last_err_hour',
-    # scheduled-test-next-check is deliberately omitted: smartd writes it as
-    # a Unix timestamp of the next scheduled self-test, which is not useful
-    # as a gauge time series in Datadog.
 }
 
 ATTR_LINE_PATTERN = re.compile(
@@ -71,8 +113,17 @@ class SmartdCheck(AgentCheck):
         self.state_dir = self.instance.get('smartd_state_dir', '/var/lib/smartmontools')
         self.file_pattern = self.instance.get('file_pattern', 'smartd.*.state')
         self.dev_disk_by_id = self.instance.get('dev_disk_by_id', '/dev/disk/by-id')
+        # Cached once so per-check() hot path doesn't re-read and re-copy
+        # the instance tags on every invocation.
+        self.custom_tags = list(self.instance.get('tags') or [])
 
     def check(self, _):
+        """Discover smartd state files and emit metrics + service checks.
+
+        Top-level errors (missing state dir, no files matched) are reported
+        via the `can_read` service check. Per-drive parse/emit logic lives
+        in `_process_state_file`.
+        """
         pattern = os.path.join(self.state_dir, self.file_pattern)
 
         if not os.path.isdir(self.state_dir):
@@ -81,7 +132,9 @@ class SmartdCheck(AgentCheck):
                 'launched with the "-s <prefix>" argument to persist per-drive '
                 'state files. See the README Prerequisites section.'
             ).format(self.state_dir)
-            self.service_check('can_read', AgentCheck.CRITICAL, message=message)
+            self.service_check(
+                'can_read', AgentCheck.CRITICAL, tags=self.custom_tags, message=message
+            )
             self.log.error(message)
             return
 
@@ -92,16 +145,22 @@ class SmartdCheck(AgentCheck):
                 'launched with the "-s <prefix>" argument to persist per-drive '
                 'state files. See the README Prerequisites section.'
             ).format(pattern)
-            self.service_check('can_read', AgentCheck.CRITICAL, message=message)
+            self.service_check(
+                'can_read', AgentCheck.CRITICAL, tags=self.custom_tags, message=message
+            )
             self.log.error(message)
             return
 
         for path in state_files:
             self._process_state_file(path)
 
-        self.service_check('can_read', AgentCheck.OK)
+        self.service_check('can_read', AgentCheck.OK, tags=self.custom_tags)
 
     def _process_state_file(self, path):
+        """Parse a single smartd state file and emit its metrics + disk_health
+        service check. Returns silently if the filename isn't parseable;
+        parse errors downgrade the drive's health to CRITICAL with a tagged
+        message rather than killing the whole check."""
         filename = os.path.basename(path)
         match = FILENAME_PATTERN.match(filename)
         if not match:
@@ -117,18 +176,21 @@ class SmartdCheck(AgentCheck):
             device_tags.append('device:/dev/{}'.format(device_name))
             device_tags.append('device_name:{}'.format(device_name))
 
-        tags = device_tags + self.instance.get('tags', [])
+        tags = device_tags + self.custom_tags
 
         try:
             attributes, top_level = self._parse_state_file(path)
         except Exception as e:
-            self.log.error('Failed to parse state file %s: %s', path, e)
-            self.service_check('disk_health', AgentCheck.CRITICAL, tags=tags, message=str(e))
+            message = 'Failed to parse state file {}: {}'.format(filename, e)
+            self.log.error(message)
+            self.service_check('disk_health', AgentCheck.CRITICAL, tags=tags, message=message)
             return
 
         # Emit top-level metrics. smartd only writes these fields when they're
         # non-zero, so default absent ones to 0 for clean time series.
-        for key, metric_name in TOP_LEVEL_METRICS.items():
+        for key, metric_name in TOP_LEVEL_MONOTONIC_METRICS.items():
+            self.monotonic_count(metric_name, top_level.get(key, 0), tags=tags)
+        for key, metric_name in TOP_LEVEL_GAUGE_METRICS.items():
             self.gauge(metric_name, top_level.get(key, 0), tags=tags)
 
         recognized = {aid: data for aid, data in attributes.items() if aid in NAMED_ATTRIBUTES}
@@ -146,14 +208,19 @@ class SmartdCheck(AgentCheck):
             self.service_check('disk_health', AgentCheck.UNKNOWN, tags=tags, message=message)
             return
 
-        health = AgentCheck.OK
-        health_message = None
+        # Note: monotonic_count drops the first sample per (metric, tag-set)
+        # after an agent restart — it establishes a baseline and emits deltas
+        # from there on. This is the desired behavior for counters; it just
+        # means "errors in the last N minutes" queries have a one-interval
+        # warm-up after a restart.
+        critical_messages = []
+        warning_messages = []
 
         for attr_id, attr_data in recognized.items():
             metric_name = NAMED_ATTRIBUTES[attr_id]
 
             raw = attr_data.get('raw', 0)
-            val = attr_data.get('val', 0)
+            val = attr_data.get('val')
 
             if metric_name == 'temperature':
                 # Temperature is encoded in the lowest byte of the raw value
@@ -161,17 +228,33 @@ class SmartdCheck(AgentCheck):
             else:
                 value = raw
 
-            self.gauge(metric_name, value, tags=tags)
+            if attr_id in MONOTONIC_ATTRIBUTES:
+                self.monotonic_count(metric_name, value, tags=tags)
+            else:
+                self.gauge(metric_name, value, tags=tags)
 
-            # Health checks
-            if val == 0:
-                health = AgentCheck.CRITICAL
-                health_message = 'Attribute {} normalized value is 0'.format(attr_id)
-            elif attr_id in WARNING_ATTRIBUTES and raw > 0 and health != AgentCheck.CRITICAL:
-                health = AgentCheck.WARNING
-                health_message = 'Attribute {} ({}): raw value {}'.format(
-                    attr_id, metric_name, raw
+            # Health checks. `val is not None` guards the case where smartd
+            # wrote a raw= line but no val= line yet (shouldn't happen in
+            # practice, but we don't want a missing normalized value to
+            # masquerade as a failing drive).
+            if val is not None and val == 0:
+                critical_messages.append(
+                    'Attribute {} ({}) normalized value is 0'.format(attr_id, metric_name)
                 )
+            elif attr_id in WARNING_ATTRIBUTES and raw > 0:
+                warning_messages.append(
+                    'Attribute {} ({}): raw value {}'.format(attr_id, metric_name, raw)
+                )
+
+        if critical_messages:
+            health = AgentCheck.CRITICAL
+            health_message = '; '.join(critical_messages)
+        elif warning_messages:
+            health = AgentCheck.WARNING
+            health_message = '; '.join(warning_messages)
+        else:
+            health = AgentCheck.OK
+            health_message = None
 
         self.service_check('disk_health', health, tags=tags, message=health_message)
 
@@ -195,11 +278,11 @@ class SmartdCheck(AgentCheck):
             self.log.debug('No by-id symlink matching %s', pattern)
             return None
         if len(matches) > 1:
+            matches.sort()
             self.log.warning(
                 'Multiple by-id symlinks match %s, using first sorted: %s',
                 pattern, matches,
             )
-            matches.sort()
         try:
             target = os.readlink(matches[0])
         except OSError as e:
@@ -208,10 +291,16 @@ class SmartdCheck(AgentCheck):
         return os.path.basename(target)
 
     def _parse_state_file(self, path):
+        """Parse a smartd state file into (attributes, top_level).
+
+        `attributes` is re-keyed by SMART attribute ID (e.g. 194) rather
+        than the file's arbitrary `ata-smart-attribute.<idx>` index.
+        `top_level` holds bare `key = value` lines like `ata-error-count`.
+        """
         attributes = {}
         top_level = {}
 
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
 
