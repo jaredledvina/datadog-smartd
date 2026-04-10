@@ -2,6 +2,18 @@
 
 <!-- towncrier release notes start -->
 
+## 0.3.0 / 2026-04-09
+
+***Added***:
+
+* New `smartd.state_file_age_seconds` gauge per drive reports the seconds since smartd last wrote the drive's state file. Lets operators alert on "smartd has stopped updating this drive" without needing to infer staleness from the agent's own emission gap — a key failure mode the check was previously blind to.
+* New `README.md` "Behavior notes" section explaining the monotonic-counter first-sample warm-up after agent restart, the post-mortem semantics of `disk_health = CRITICAL`, and the vendor-specific encodings behind `temperature`, `spin_up_time`, `total_lbas_*`, and `power_on_hours`.
+
+***Fixed***:
+
+* `smartd.FILENAME_PATTERN` now only matches `.ata.state` files. Previously, NVMe (`.nvme.state`) and SCSI (`.scsi.state`) state files were opened, parsed as ATA, found to contain no recognized attributes, and reported as `disk_health = UNKNOWN` forever — a silently wrong signal for any host with non-ATA drives. Unsupported bus types are now logged once at INFO level and skipped cleanly; NVMe and SCSI support is planned for a future release.
+* Device name resolution now caches successful serial → kernel-device lookups for the process lifetime. Previously, each check cycle re-globbed `/dev/disk/by-id` for every drive, which (a) wasted work on data that effectively never changes and (b) could cause the `device:` tag to flap if udev was mid-rescan during a check — splitting a drive's metrics into two Datadog timeseries. Failed lookups are still retried on every check so drives whose by-id symlink appears later still pick up a tag eventually.
+
 ## 0.2.0 / 2026-04-08
 
 ***Changed***:

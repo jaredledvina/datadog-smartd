@@ -1,10 +1,19 @@
 import glob
 import os
 import re
+import time
 
 from datadog_checks.base import AgentCheck
 
-FILENAME_PATTERN = re.compile(r'^smartd\.(.+)-([^-]+)\.\w+\.state$')
+# smartd state file names look like `smartd.<MODEL>-<SERIAL>.<bus>.state`
+# where <bus> is ata, nvme, or scsi. This integration currently parses
+# ATA/SATA state files only — other bus types have entirely different
+# key namespaces (nvme-smart-health-information.*, scsi-*) and will be
+# supported in a future release.
+FILENAME_PATTERN = re.compile(r'^smartd\.(.+)-([^-]+)\.ata\.state$')
+# Matches any bus type, used to produce a helpful message when we see a
+# state file for a bus we don't yet support.
+BUS_PATTERN = re.compile(r'^smartd\.(.+)-([^-]+)\.(\w+)\.state$')
 
 # SMART attribute ID → metric name mapping
 NAMED_ATTRIBUTES = {
@@ -116,6 +125,18 @@ class SmartdCheck(AgentCheck):
         # Cached once so per-check() hot path doesn't re-read and re-copy
         # the instance tags on every invocation.
         self.custom_tags = list(self.instance.get('tags') or [])
+        # Cache of serial → kernel device name (e.g. 'sdb'). Populated on
+        # first successful resolution and reused for the process lifetime,
+        # which (a) avoids re-globbing /dev/disk/by-id every check cycle
+        # for data that effectively never changes, and (b) prevents the
+        # `device:/dev/<name>` tag from flapping if udev is mid-rescan
+        # and the by-id symlink is transiently absent. Only successful
+        # resolutions are cached so that a drive whose by-id symlink
+        # appears later still picks up a tag eventually.
+        self._device_name_cache = {}
+        # Bus types we've already warned about, to keep the log quiet
+        # after the first check cycle finds an unsupported state file.
+        self._warned_bus_types = set()
 
     def check(self, _):
         """Discover smartd state files and emit metrics + service checks.
@@ -158,13 +179,30 @@ class SmartdCheck(AgentCheck):
 
     def _process_state_file(self, path):
         """Parse a single smartd state file and emit its metrics + disk_health
-        service check. Returns silently if the filename isn't parseable;
-        parse errors downgrade the drive's health to CRITICAL with a tagged
-        message rather than killing the whole check."""
+        service check. Returns silently if the filename isn't a supported
+        ATA state file; parse errors downgrade the drive's health to
+        CRITICAL with a tagged message rather than killing the whole check."""
         filename = os.path.basename(path)
         match = FILENAME_PATTERN.match(filename)
         if not match:
-            self.log.warning('Could not parse device info from filename: %s', filename)
+            # Either an unsupported bus type (nvme/scsi) or something that
+            # doesn't look like a smartd state file at all. Distinguish so
+            # the operator isn't left wondering why their NVMe drive has
+            # no metrics.
+            bus_match = BUS_PATTERN.match(filename)
+            if bus_match:
+                bus_type = bus_match.group(3)
+                if bus_type not in self._warned_bus_types:
+                    self.log.info(
+                        'Skipping %s: bus type %r is not yet supported by this '
+                        'integration. Only ATA/SATA state files (*.ata.state) '
+                        'are parsed; NVMe and SCSI/SAS will be added in a '
+                        'future release.',
+                        filename, bus_type,
+                    )
+                    self._warned_bus_types.add(bus_type)
+            else:
+                self.log.warning('Could not parse device info from filename: %s', filename)
             return
 
         model = match.group(1)
@@ -177,6 +215,17 @@ class SmartdCheck(AgentCheck):
             device_tags.append('device_name:{}'.format(device_name))
 
         tags = device_tags + self.custom_tags
+
+        # Emit state file freshness as a gauge so operators can alert on
+        # "smartd hasn't updated this drive in over N seconds" without
+        # having to infer staleness from the agent's own emission gap.
+        # Reported even if parsing later fails, so a corrupt-but-fresh
+        # file is distinguishable from a crashed-smartd scenario.
+        try:
+            age_seconds = time.time() - os.stat(path).st_mtime
+            self.gauge('state_file_age_seconds', age_seconds, tags=tags)
+        except OSError as e:
+            self.log.warning('Failed to stat %s: %s', path, e)
 
         try:
             attributes, top_level = self._parse_state_file(path)
@@ -268,7 +317,16 @@ class SmartdCheck(AgentCheck):
         names, while /dev/disk/by-id preserves the original dashes. Matching
         by serial sidesteps the ambiguity entirely and also skips partition
         symlinks (which have a `-partN` suffix).
+
+        Successful resolutions are cached in `self._device_name_cache` so
+        we don't re-glob every check cycle (drive serial → kernel name is
+        stable for the process lifetime). Unsuccessful lookups are NOT
+        cached so that a drive whose by-id symlink appears after the check
+        first sees it will eventually pick up a `device:` tag.
         """
+        cached = self._device_name_cache.get(serial)
+        if cached is not None:
+            return cached
         pattern = os.path.join(
             self.dev_disk_by_id,
             'ata-*_' + glob.escape(serial),
@@ -288,7 +346,9 @@ class SmartdCheck(AgentCheck):
         except OSError as e:
             self.log.debug('Failed to readlink %s: %s', matches[0], e)
             return None
-        return os.path.basename(target)
+        device_name = os.path.basename(target)
+        self._device_name_cache[serial] = device_name
+        return device_name
 
     def _parse_state_file(self, path):
         """Parse a smartd state file into (attributes, top_level).

@@ -84,13 +84,37 @@ See [metadata.csv][6] for a list of metrics provided by this integration.
 
 ### Service Checks
 
-**smartd.disk_health**: Returns `OK` if the drive is healthy, `WARNING` if reallocated sectors, pending sectors, or offline uncorrectable counts are non-zero, `CRITICAL` if a normalized attribute value reaches 0.
+**smartd.disk_health**: Returns `OK` if the drive is healthy, `WARNING` if reallocated sectors, pending sectors, offline uncorrectable counts, or reported uncorrectable errors are non-zero, `CRITICAL` if a normalized attribute value reaches 0.
 
 **smartd.can_read**: Returns `OK` if smartd state files were found and parsed successfully, `CRITICAL` otherwise.
 
 ### Events
 
 The smartd integration does not include any events.
+
+## Behavior notes
+
+A few things are worth knowing before writing monitors on these metrics.
+
+### Monotonic counters have a one-interval warm-up after agent restart
+
+Metrics like `smartd.power_on_hours`, `smartd.reallocated_sectors`, `smartd.udma_crc_error_count`, `smartd.ata_error_count`, and all the other `count`-type metrics in `metadata.csv` are emitted as monotonic counters. The Datadog Agent drops the first sample for each `(metric, tag-set)` pair after a restart to establish a baseline, then emits the per-interval delta from the second sample onwards. In practice this means you will see "no data" for the first check cycle after an agent restart for any counter metric. This is normal and expected — it's what makes trivial rate queries like "errors in the last 5 minutes" work without any `diff()` gymnastics in the monitor.
+
+### `disk_health = CRITICAL` is post-mortem, not predictive
+
+The check flips to CRITICAL when any SMART attribute's *normalized* value (`val`) reaches 0. By the time that happens the drive's own firmware has almost certainly already failed the drive. This is useful as a "confirmed-dead, replace now" signal but is **not** a predictive "drive is going to fail soon" signal. For predictive monitoring, alert on `smartd.disk_health = WARNING` (which fires as soon as `reallocated_sectors`, `current_pending_sectors`, `offline_uncorrectable`, or `reported_uncorrectable_errors` become non-zero — the Backblaze-validated early-warning attributes), or write your own threshold monitors on those metrics directly.
+
+### Several raw values are vendor-encoded
+
+`smartd.temperature` reports the lowest byte of SMART attribute 194's raw value, which is the current temperature in °C on every drive we've tested (Seagate, HGST, Hitachi, Samsung SSD). Some vendors pack minimum/maximum temperatures in the upper bytes of the same raw int, which this check ignores.
+
+`smartd.spin_up_time`, `smartd.total_lbas_written`, and `smartd.total_lbas_read` are emitted as the drive-reported raw uint, with no vendor-specific decoding. Depending on the drive, `total_lbas_*` may be in raw LBA units or vendor-chosen multiples (commonly 32 MiB or 64 MiB chunks on Samsung SSDs), so do not multiply by sector size to derive TB-written without first confirming the encoding for your specific drive model.
+
+`smartd.power_on_hours` is in hours on every drive we've tested but some older drives reported in minutes — double-check against `smartctl -A` if a drive shows unexpectedly large values.
+
+### Non-ATA state files are currently ignored
+
+Only `.ata.state` files are parsed. If smartd writes `.nvme.state` (NVMe drives) or `.scsi.state` (SAS/SCSI drives), the check logs the bus type once at `INFO` level and skips the file — no metrics or service checks are emitted for those drives. NVMe and SCSI support is planned for a future release.
 
 ## Support
 
